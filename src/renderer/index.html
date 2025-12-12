@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DexHive Scraper</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>DexHive Table Scraper</h1>
+      <p>Extract table data from DexHive website to CSV</p>
+    </header>
+
+    <main>
+      <div class="form-group">
+        <label for="url">Website URL:</label>
+        <input
+          type="text"
+          id="url"
+          value="https://www.dexhive.com/%D7%94%D7%93-%D7%94%D7%90%D7%A0%D7%98%D7%A8%D7%99%D7%9D-%D7%91%D7%99%D7%A9%D7%A8%D7%90%D7%9C"
+          placeholder="Enter website URL"
+        />
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="startPage">Start Page:</label>
+          <input type="number" id="startPage" value="1" min="1" />
+        </div>
+
+        <div class="form-group">
+          <label for="endPage">End Page:</label>
+          <input type="number" id="endPage" value="15" min="1" />
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="filePath">Output File:</label>
+        <div class="file-input-group">
+          <input
+            type="text"
+            id="filePath"
+            placeholder="Click 'Select File' to choose location"
+            readonly
+          />
+          <button id="selectFileBtn" class="btn btn-secondary">Select File</button>
+        </div>
+      </div>
+
+      <div class="progress-container" id="progressContainer" style="display: none;">
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <p class="progress-text" id="progressText">Initializing...</p>
+      </div>
+
+      <div class="button-group">
+        <button id="startBtn" class="btn btn-primary">Start Scraping</button>
+        <button id="cancelBtn" class="btn btn-secondary" style="display: none;">Cancel</button>
+      </div>
+
+      <div class="status-message" id="statusMessage"></div>
+    </main>
+
+    <footer>
+      <p>Made for scraping DexHive table data</p>
+    </footer>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
