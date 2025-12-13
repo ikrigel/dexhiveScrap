@@ -1,7 +1,6 @@
-import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { createObjectCsvWriter } from 'csv-writer';
-import * as path from 'path';
+import puppeteer from 'puppeteer';
 
 export interface ScraperConfig {
   baseUrl: string;
@@ -33,30 +32,51 @@ export class DexHiveScraper {
   }
 
   async scrape(): Promise<void> {
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+
     try {
       const allData: TableRow[] = [];
       let headers: string[] = [];
       const totalPages = this.config.endPage - this.config.startPage + 1;
+      const page = await browser.newPage();
 
-      for (let page = this.config.startPage; page <= this.config.endPage; page++) {
-        this.updateProgress(page - this.config.startPage + 1, totalPages, `Scraping page ${page}...`);
+      // Set viewport and user agent
+      await page.setViewport({ width: 1920, height: 1080 });
+      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
-        const url = `${this.config.baseUrl}#page=${page}`;
+      // Navigate to the base page first
+      await page.goto(this.config.baseUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+      await page.waitForSelector('table', { timeout: 10000 });
+
+      for (let pageNum = this.config.startPage; pageNum <= this.config.endPage; pageNum++) {
+        this.updateProgress(pageNum - this.config.startPage + 1, totalPages, `Scraping page ${pageNum}...`);
 
         try {
-          const response = await axios.get(url, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            }
-          });
+          // If not the first page, navigate to the specific page
+          if (pageNum > this.config.startPage) {
+            // Update the hash to trigger page change
+            await page.evaluate((num: number) => {
+              // @ts-ignore - window exists in browser context
+              window.location.hash = `page=${num}`;
+            }, pageNum);
 
-          const $ = cheerio.load(response.data);
+            // Wait for content to update
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            await page.waitForSelector('table', { timeout: 10000 });
+          }
+
+          // Get the HTML content after JavaScript has executed
+          const htmlContent = await page.content();
+          const $ = cheerio.load(htmlContent);
 
           // Find the table
           const table = $('table').first();
 
           if (table.length === 0) {
-            console.warn(`No table found on page ${page}`);
+            console.warn(`No table found on page ${pageNum}`);
             continue;
           }
 
@@ -98,8 +118,8 @@ export class DexHiveScraper {
           await new Promise(resolve => setTimeout(resolve, 1000));
 
         } catch (error) {
-          console.error(`Error scraping page ${page}:`, error);
-          this.updateProgress(page - this.config.startPage + 1, totalPages, `Error on page ${page}`);
+          console.error(`Error scraping page ${pageNum}:`, error);
+          this.updateProgress(pageNum - this.config.startPage + 1, totalPages, `Error on page ${pageNum}`);
         }
       }
 
@@ -112,15 +132,26 @@ export class DexHiveScraper {
 
       const csvWriter = createObjectCsvWriter({
         path: this.config.outputPath,
-        header: headers.map(h => ({ id: h, title: h }))
+        header: headers.map(h => ({ id: h, title: h })),
+        encoding: 'utf8',
+        append: false,
+        alwaysQuote: true
       });
 
       await csvWriter.writeRecords(allData);
+
+      // Add UTF-8 BOM for Excel compatibility with Hebrew
+      const fs = require('fs');
+      const content = fs.readFileSync(this.config.outputPath);
+      const BOM = '\uFEFF';
+      fs.writeFileSync(this.config.outputPath, BOM + content.toString('utf8'));
 
       this.updateProgress(totalPages, totalPages, `Complete! Scraped ${allData.length} rows to ${this.config.outputPath}`);
 
     } catch (error) {
       throw new Error(`Scraping failed: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      await browser.close();
     }
   }
 }
