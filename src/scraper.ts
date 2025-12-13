@@ -48,8 +48,13 @@ export class DexHiveScraper {
       await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
       // Navigate to the base page first
-      await page.goto(this.config.baseUrl, { waitUntil: 'networkidle2', timeout: 30000 });
-      await page.waitForSelector('table', { timeout: 10000 });
+      await page.goto(this.config.baseUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+
+      // Wait for the table to appear (might take time for JS to load)
+      await page.waitForSelector('table', { timeout: 30000 });
+
+      // Extra wait to ensure content is fully loaded
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
       for (let pageNum = this.config.startPage; pageNum <= this.config.endPage; pageNum++) {
         this.updateProgress(pageNum - this.config.startPage + 1, totalPages, `Scraping page ${pageNum}...`);
@@ -63,56 +68,56 @@ export class DexHiveScraper {
               window.location.hash = `page=${num}`;
             }, pageNum);
 
-            // Wait for content to update
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            await page.waitForSelector('table', { timeout: 10000 });
+            // Wait for content to update (increased wait time)
+            await new Promise(resolve => setTimeout(resolve, 4000));
+            await page.waitForSelector('table', { timeout: 30000 });
           }
 
           // Get the HTML content after JavaScript has executed
           const htmlContent = await page.content();
           const $ = cheerio.load(htmlContent);
 
-          // Find the table
-          const table = $('table').first();
+          // The page structure is: each person/entry is displayed as a card with multiple table rows
+          // Each row has 2 cells: [field name, field value]
+          // We need to find all tables and extract data from each as a separate entry
 
-          if (table.length === 0) {
-            console.warn(`No table found on page ${pageNum}`);
-            continue;
-          }
+          let rowsOnPage = 0;
 
-          // Extract headers from the first page only
-          if (headers.length === 0) {
-            table.find('thead tr th, thead tr td, tbody tr:first th').each((_, element) => {
-              const headerText = $(element).text().trim();
-              if (headerText) {
-                headers.push(headerText);
+          // Find all tables that contain entry data
+          $('table.shrink').each((_, table) => {
+            const entryData: TableRow = {};
+            let hasData = false;
+
+            // Each table represents one person/entry
+            // Each row in the table has: <td>field label</td><td>field value</td>
+            $(table).find('tbody tr').each((_, row) => {
+              const cells = $(row).find('td');
+
+              if (cells.length === 2) {
+                // First cell is the field label, second is the value
+                const fieldLabel = $(cells[0]).find('div').first().text().trim();
+                const fieldValue = $(cells[1]).text().trim();
+
+                if (fieldLabel && fieldValue) {
+                  entryData[fieldLabel] = fieldValue;
+                  hasData = true;
+
+                  // Collect unique headers
+                  if (!headers.includes(fieldLabel)) {
+                    headers.push(fieldLabel);
+                  }
+                }
               }
             });
 
-            // If no headers in thead, try first row of tbody
-            if (headers.length === 0) {
-              table.find('tbody tr:first td, tr:first td').each((_, element) => {
-                headers.push($(element).text().trim() || `Column ${headers.length + 1}`);
-              });
-            }
-          }
-
-          // Extract data rows
-          table.find('tbody tr, tr').each((index, row) => {
-            // Skip header row if it's in tbody
-            if (index === 0 && headers.length === 0) return;
-
-            const rowData: TableRow = {};
-            $(row).find('td').each((colIndex, cell) => {
-              const headerKey = headers[colIndex] || `Column ${colIndex + 1}`;
-              rowData[headerKey] = $(cell).text().trim();
-            });
-
-            // Only add row if it has data
-            if (Object.keys(rowData).length > 0) {
-              allData.push(rowData);
+            // Add this entry if it has data
+            if (hasData && Object.keys(entryData).length > 0) {
+              allData.push(entryData);
+              rowsOnPage++;
             }
           });
+
+          console.log(`Page ${pageNum}: Found ${rowsOnPage} entries (Total: ${allData.length}, Headers: ${headers.length})`);
 
           // Add delay between requests to be respectful
           await new Promise(resolve => setTimeout(resolve, 1000));
