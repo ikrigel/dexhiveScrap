@@ -4,3 +4,5 @@ release/
 *.log
 .DS_Store
 .env
+debug_page.html
+.claude/

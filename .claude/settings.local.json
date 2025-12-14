@@ -6,7 +6,9 @@
       "Bash(git add:*)",
       "Bash(git commit -m \"$(cat <<''EOF''\nUpdate scraper to use Puppeteer for JavaScript-rendered content\n\n- Replace axios with Puppeteer to handle dynamic content loading\n- Fix Hebrew text encoding in CSV with UTF-8 BOM for Excel compatibility\n- Improve page navigation using hash-based routing\n- Update Electron to v33.2.0 for Node.js v24 compatibility\n- Add proper wait times for content to load between page changes\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n)\")",
       "Bash(git push)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(git commit:*)",
+      "Bash(git rm:*)"
     ]
   }
 }
